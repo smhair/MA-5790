@@ -82,10 +82,6 @@ data_out <- data_raw[, 55]
 
 ```{r explore the data}
 
-#relationship between each predictor
-#par(mar=c(2,2,2,2))
-#pairs(data_raw)
-
 #between predictor correlations
 corr <- cor(data_predict[, -55])
 
