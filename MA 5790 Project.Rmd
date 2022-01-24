@@ -96,7 +96,7 @@ sum(!complete.cases(freq_tab))
 ```
 
 #Adding Predictors
-Since all of our predictors are categorical, we do not need to add any predcitors. 
+Since all of our predictors are categorical, we do not need to add any predictors. 
 
 #Deleting Predictors
 ```{r deleting predictors}
@@ -131,6 +131,11 @@ dim(data_new)
 
 #Spending the data
 ```{r spending the data}
+
+```
+
+#Resampling
+```{r}
 
 ```
 
