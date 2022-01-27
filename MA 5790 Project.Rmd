@@ -164,6 +164,7 @@ highcor <- findCorrelation(corr, cutoff = .90)
 
 #remove predictors that are highly correlated
 data_trans1 <- train_predict[,-highcor]
+new_train <- train_data[,-highcor]
 
 dim(data_trans1)
 ```
@@ -204,9 +205,9 @@ dim(data_new)
 
 #Resampling the data
 ```{r resampling}
-svm_fit <- train(Divorce_Y_N ~., data = train_data, method = "svmRadial", preProc = c("BoxCox", "pca"), tuneLength = 10, trControl = trainControl(method = "repeatedcv", repeats  = 5))
+svm_fit <- train(Divorce_Y_N ~., data = new_train, method = "svmRadial", preProc = c("BoxCox", "pca"), tuneLength = 10, trControl = trainControl(method = "repeatedcv", repeats  = 5))
 
-knn_fit <- train(Divorce_Y_N ~., data = train_data, method = "knn", preProc = c("BoxCox", "pca"), tuneLength = 5, trControl = trainControl(method = "repeatedcv", repeats  = 5))
+knn_fit <- train(Divorce_Y_N ~., data = new_train, method = "knn", preProc = c("BoxCox", "pca"), tuneLength = 5, trControl = trainControl(method = "repeatedcv", repeats  = 5))
 ```
 
 #Finding the best resampling method
@@ -216,5 +217,17 @@ summary(resamp)
 
 model_diff <- diff(resamp)
 summary(model_diff)
+```
+
+#Calculate R^2
+```{r performance}
+svm_pred <- predict(svm_fit, test_data[, -55])
+svm_val <- data.frame(obs = test_data[, 55], pred = svm_pred)
+defaultSummary(svm_val)
+  
+knn_pred <- predict(knn_fit, test_data[, -55])  
+knn_val <- data.frame(obs = test_data[, 55], pred = knn_pred)
+defaultSummary(knn_val)
+
 ```
 
