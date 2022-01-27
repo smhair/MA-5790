@@ -6,11 +6,17 @@ output: html_document
 ---
 
 ```{r setup}
+library(purrr)
+library(tidyselect)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
 library(dplyr)
 library(Hmisc)
 library(e1071)
 library(caret)
 library(corrplot)
+library(moments)
 ```
 
 # Data Description 
@@ -75,12 +81,36 @@ The variable that is the outcome, is Divorce (Y/N), coded in binary.
 
 ```{r dataset}
 data_raw <- read.csv("divorce.csv")
+data_struct=str(data_raw)
 
 data_predict <- data_raw[, -55]
 data_out <- data_raw[, 55]
 ```
 
 ```{r explore the data}
+#histograms for first 20 predictors
+data_predict[,seq(1:20)] %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+  facet_wrap(~ key, scales = "free") +
+  geom_histogram(bins = 9)
+
+#histograms for predictors 21-40
+data_predict[,seq(21:40)] %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+  facet_wrap(~ key, scales = "free") +
+  geom_histogram(bins = 9)
+
+#histograms for predictors 41-55
+data_predict[,seq(41:55)] %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+  facet_wrap(~ key, scales = "free") +
+  geom_histogram(bins = 9)
 
 #between predictor correlations
 corr <- cor(data_predict[, -55])
@@ -93,10 +123,18 @@ freq_tab <- lapply(data_predict, table)
 #missing data
 sum(!complete.cases(freq_tab))
 
+#calculate skewness for all predictors
+predictorSkew=round(skewness(data_predict),3);
+
+#plot skewness
+boxplot(predictorSkew, main='Spread of Skewness for all predictors', xlab='predictors (54)', ylab='skewness coefficient');
+
+plot(predictorSkew, main='scatter plot of predictor and its skew',xlab = 'predictor index',ylab = 'skewness coefficient')
+hist(predictorSkew)
 ```
 
 #Adding Predictors
-Since all of our predictors are categorical, we do not need to add any predictors. 
+Since all of our predictors are categorical, we do not need to add any predcitors. 
 
 #Deleting Predictors
 ```{r deleting predictors}
@@ -121,8 +159,11 @@ Since we do not have any missing values, we have no need to imputate any variabl
 ```{r transforming the data}
 trans <- preProcess(data_trans1, method = c("BoxCox", "center", "scale", "pca"))
 
+trans$dim
+t=as.data.frame(trans$rotation)
+str(t)
+screeplot(t)
 data_new <- predict(trans, data_trans1)
-
 
 
 dim(data_new)
@@ -131,11 +172,6 @@ dim(data_new)
 
 #Spending the data
 ```{r spending the data}
-
-```
-
-#Resampling
-```{r}
 
 ```
 
