@@ -17,6 +17,7 @@ library(e1071)
 library(caret)
 library(corrplot)
 library(moments)
+library(kernlab)
 ```
 
 # Data Description 
@@ -80,11 +81,14 @@ For this project, we are using the dataset 'Predicting Divorce' (https://www.kag
 The variable that is the outcome, is Divorce (Y/N), coded in binary. 
 
 ```{r dataset}
-data_raw <- read.csv("divorce.csv")
-data_struct=str(data_raw)
+data_raw <- read.csv("divorce.csv") 
+
+data_raw <- data_raw %>% 
+  mutate(Divorce_Y_N = as.factor(Divorce_Y_N))
 
 data_predict <- data_raw[, -55]
-data_out <- data_raw[, 55]
+
+dim(data_raw)
 ```
 
 ```{r explore the data}
@@ -133,17 +137,33 @@ plot(predictorSkew, main='scatter plot of predictor and its skew',xlab = 'predic
 hist(predictorSkew)
 ```
 
+#Spending the data
+```{r spending the data}
+set.seed(1)
+
+train_row <- createDataPartition(data_raw$Divorce_Y_N, p = .8, list = FALSE)
+
+#train data
+train_data <- data_raw[train_row, ]
+
+train_predict <- train_data[, -55 ]
+
+#test data
+test_data <- data_raw[-train_row, ]
+```
+
 #Adding Predictors
 Since all of our predictors are categorical, we do not need to add any predcitors. 
 
 #Deleting Predictors
 ```{r deleting predictors}
-novar <- nearZeroVar(data_predict)
+novar <- nearZeroVar(train_predict)
+corr <- cor(train_predict)
 
 highcor <- findCorrelation(corr, cutoff = .90)
 
 #remove predictors that are highly correlated
-data_trans1 <- data_predict[,-highcor]
+data_trans1 <- train_predict[,-highcor]
 
 dim(data_trans1)
 ```
@@ -152,17 +172,29 @@ dim(data_trans1)
 #Imputation
 Since we do not have any missing values, we have no need to imputate any variables. 
 
+#Center and Scale
+No need to center and scale since all variables are on the same categorical scale of 0-4. 
+
+#Spatial Sign
+No need for spatial sign 
+
 #Box-Cox transformation
 #PC
-#Center and Scale
-#Spatial sign for outliers
 ```{r transforming the data}
-trans <- preProcess(data_trans1, method = c("BoxCox", "center", "scale", "pca"))
+trans <- preProcess(data_trans1, method = c("BoxCox","pca"))
 
-trans$dim
-t=as.data.frame(trans$rotation)
-str(t)
-screeplot(t)
+#scree plot
+results <- prcomp(data_trans1, center = TRUE, scale = TRUE)
+var_explained <- results$sdev^2 / sum(results$sdev^2)
+
+qplot(c(1:33), var_explained) + 
+  geom_line() + 
+  xlab("Principal Component") + 
+  ylab("Variance Explained") +
+  ggtitle("Scree Plot") +
+  ylim(0, 1)
+
+
 data_new <- predict(trans, data_trans1)
 
 
@@ -170,8 +202,19 @@ dim(data_new)
 ```
 
 
-#Spending the data
-```{r spending the data}
+#Resampling the data
+```{r resampling}
+svm_fit <- train(Divorce_Y_N ~., data = train_data, method = "svmRadial", preProc = c("BoxCox", "pca"), tuneLength = 10, trControl = trainControl(method = "repeatedcv", repeats  = 5))
 
+knn_fit <- train(Divorce_Y_N ~., data = train_data, method = "knn", preProc = c("BoxCox", "pca"), tuneLength = 5, trControl = trainControl(method = "repeatedcv", repeats  = 5))
+```
+
+#Finding the best resampling method
+```{r}
+resamp <- resamples(list(SVM = svm_fit, KNN = knn_fit))
+summary(resamp)
+
+model_diff <- diff(resamp)
+summary(model_diff)
 ```
 
