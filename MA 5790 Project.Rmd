@@ -84,9 +84,11 @@ The variable that is the outcome, is Divorce (Y/N), coded in binary.
 data_raw <- read.csv("divorce.csv") 
 
 data_raw <- data_raw %>% 
-  mutate(Divorce_Y_N = as.factor(Divorce_Y_N))
+  mutate(Divorce_Y_N = as.factor(if_else(Divorce_Y_N == 1, "Y", "N")))
 
 data_predict <- data_raw[, -55]
+
+data_out <- data_raw[, 55]
 
 dim(data_raw)
 ```
@@ -141,19 +143,21 @@ hist(predictorSkew)
 ```{r spending the data}
 set.seed(1)
 
-train_row <- createDataPartition(data_raw$Divorce_Y_N, p = .8, list = FALSE)
+train_row <- createDataPartition(data_out, p = .8, list = FALSE)
+
+data_out_frame <- as.data.frame(data_out)
 
 #train data
-train_data <- data_raw[train_row, ]
-
-train_predict <- train_data[, -55 ]
+train_predict <- data_predict[train_row, ]
+train_out <- data_out_frame[train_row, ]
 
 #test data
-test_data <- data_raw[-train_row, ]
+test_predict <- data_predict[-train_row, ]
+test_out <- data_out_frame[-train_row, ]
 ```
 
 #Adding Predictors
-Since all of our predictors are categorical, we do not need to add any predcitors. 
+Since all of our predictors are categorical, we do not need to add any predictors. 
 
 #Deleting Predictors
 ```{r deleting predictors}
@@ -164,7 +168,6 @@ highcor <- findCorrelation(corr, cutoff = .90)
 
 #remove predictors that are highly correlated
 data_trans1 <- train_predict[,-highcor]
-new_train <- train_data[,-highcor]
 
 dim(data_trans1)
 ```
@@ -182,7 +185,7 @@ No need for spatial sign
 #Box-Cox transformation
 #PC
 ```{r transforming the data}
-trans <- preProcess(data_trans1, method = c("BoxCox","pca"))
+trans <- preProcess(data_trans1, method = c("pca"))
 
 #scree plot
 results <- prcomp(data_trans1, center = TRUE, scale = TRUE)
@@ -203,31 +206,84 @@ dim(data_new)
 ```
 
 
-#Resampling the data
+#Resampling the data w/ multiple models
 ```{r resampling}
-svm_fit <- train(Divorce_Y_N ~., data = new_train, method = "svmRadial", preProc = c("BoxCox", "pca"), tuneLength = 10, trControl = trainControl(method = "repeatedcv", repeats  = 5))
+ctrl <- trainControl(method = "LGOCV", summaryFunction = twoClassSummary, classProbs = TRUE, savePredictions = TRUE)
 
-knn_fit <- train(Divorce_Y_N ~., data = new_train, method = "knn", preProc = c("BoxCox", "pca"), tuneLength = 5, trControl = trainControl(method = "repeatedcv", repeats  = 5))
+proc <- c("center", "scale", "pca", "nzv")
+
+#Logistic
+lgfit <- train(x = train_predict, y = train_out, method = "glm", metric = "ROC", trControl = ctrl, preProcess = proc)
+
+#LDA
+ldafit <- train(x = train_predict, y = train_out, method = "lda", metric = "ROC", trControl = ctrl, preProcess = proc)
+
+#PLSDA
+plsfit <- train(x = train_predict, y = train_out, method = "pls", tuneGrid = expand.grid(.ncomp = 1:4), preProcess = proc, metric = "ROC", trControl = ctrl)
+
+#Penalized
+glmgrid <- expand.grid(.alpha = c(0,.1,.2,.4,.6,.8,1), .lambda = seq(.01,.2,length = 10))
+penfit <- train(x = train_predict, y = train_out, method = "glmnet", metric = "ROC", tuneGrid = glmgrid, preProcess = proc, trControl = ctrl)
+
+#Shrunken
+nscGrid <- data.frame(.threshold = 0:25)
+nscfit <- train(x = train_predict, y = train_out, method = "pam", preProc = proc, tuneGrid = nscGrid,
+metric = "ROC", trControl = ctrl)
+
 ```
 
-#Finding the best resampling method
+#Tuning Parameter Plot
 ```{r}
-resamp <- resamples(list(SVM = svm_fit, KNN = knn_fit))
-summary(resamp)
+plot(plsfit, main = "PLSDA Tuning Parameter Plot", xlab = "Number of Components", ylab = "ROC")
 
-model_diff <- diff(resamp)
-summary(model_diff)
+plot(penfit, main = "Penalized Tuning Parameter Plot", xlab = "Number of Components", ylab = "ROC")
+
+plot(nscfit, main = "Shrunken Centroid Tuning Parameter Plot", xlab = "Number of Components", ylab = "ROC")
 ```
 
-#Calculate R^2
-```{r performance}
-svm_pred <- predict(svm_fit, test_data[, -55])
-svm_val <- data.frame(obs = test_data[, 55], pred = svm_pred)
-defaultSummary(svm_val)
-  
-knn_pred <- predict(knn_fit, test_data[, -55])  
-knn_val <- data.frame(obs = test_data[, 55], pred = knn_pred)
-defaultSummary(knn_val)
 
+#Finding the best model
+```{r}
+lgfit
+confusionMatrix(data = lgfit$pred$pred, reference = lgfit$pred$obs)
+
+ldafit
+confusionMatrix(data = ldafit$pred$pred, reference = ldafit$pred$obs)
+
+plsfit
+confusionMatrix(data = plsfit$pred$pred, reference = plsfit$pred$obs)
+
+penfit
+confusionMatrix(data = penfit$pred$pred, reference = penfit$pred$obs)
+
+nscfit
+confusionMatrix(data = nscfit$pred$pred, reference = nscfit$pred$obs)
+```
+
+#Calculate predictions
+```{r performance}
+lgpred <- predict(lgfit, newdata = test_predict)
+confusionMatrix(data = lgpred, test_out)
+
+ldapred <- predict(ldafit, newdata = test_predict)
+confusionMatrix(data = ldapred, test_out)
+
+plspred <- predict(plsfit, newdata = test_predict)
+confusionMatrix(data = plspred, test_out)
+
+penpred <- predict(penfit, newdata = test_predict)
+confusionMatrix(data = penpred, test_out)
+
+nscpred <- predict(nscfit, newdata = test_predict)
+confusionMatrix(data = nscpred, test_out)
+```
+
+#Best Predictors
+```{r best predictors}
+aa <- varImp(plsfit)
+plot(aa, top = 5, scales = list(y = list(cex = .95)))
+
+bb <- varImp(plsfit)
+plot(bb, top = 5, scales = list(y = list(cex = .95)))
 ```
 
