@@ -4,6 +4,10 @@ author: "Ezequiel Carrillo and Samantha Hair"
 date: "1/22/2022"
 output: html_document
 ---
+```{r packages}
+packages = c('purrr','tidyselect','dplyr','tidyr','ggplot2','dplyr','Hmisc','e1071','caret','corrplot','moments','kernlab','pls')
+install.packages(packages)
+```
 
 ```{r setup}
 library(purrr)
@@ -91,6 +95,7 @@ data_predict <- data_raw[, -55]
 data_out <- data_raw[, 55]
 
 dim(data_raw)
+names(data_raw)
 ```
 
 ```{r explore the data}
@@ -129,14 +134,6 @@ freq_tab <- lapply(data_predict, table)
 #missing data
 sum(!complete.cases(freq_tab))
 
-#calculate skewness for all predictors
-predictorSkew=round(skewness(data_predict),3);
-
-#plot skewness
-boxplot(predictorSkew, main='Spread of Skewness for all predictors', xlab='predictors (54)', ylab='skewness coefficient');
-
-plot(predictorSkew, main='scatter plot of predictor and its skew',xlab = 'predictor index',ylab = 'skewness coefficient')
-hist(predictorSkew)
 ```
 
 #Spending the data
@@ -210,7 +207,7 @@ dim(data_new)
 ```{r resampling}
 ctrl <- trainControl(method = "LGOCV", summaryFunction = twoClassSummary, classProbs = TRUE, savePredictions = TRUE)
 
-proc <- c("center", "scale", "pca", "corr")
+proc <- c("center", "scale", "pca", "nzv")
 
 #Logistic
 lgfit <- train(x = train_predict, y = train_out, method = "glm", metric = "ROC", trControl = ctrl, preProcess = proc)
@@ -264,6 +261,7 @@ confusionMatrix(data = nscfit$pred$pred, reference = nscfit$pred$obs)
 ```{r performance}
 lgpred <- predict(lgfit, newdata = test_predict)
 confusionMatrix(data = lgpred, test_out)
+
 
 ldapred <- predict(ldafit, newdata = test_predict)
 confusionMatrix(data = ldapred, test_out)
