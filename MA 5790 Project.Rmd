@@ -100,7 +100,7 @@ names(data_raw)
 
 ```{r explore the data}
 #histograms for first 20 predictors
-data_predict[,seq(1:20)] %>%
+data_predict[,seq(1:25)] %>%
   keep(is.numeric) %>% 
   gather() %>% 
   ggplot(aes(value)) +
@@ -108,15 +108,7 @@ data_predict[,seq(1:20)] %>%
   geom_histogram(bins = 9)
 
 #histograms for predictors 21-40
-data_predict[,seq(21:40)] %>%
-  keep(is.numeric) %>% 
-  gather() %>% 
-  ggplot(aes(value)) +
-  facet_wrap(~ key, scales = "free") +
-  geom_histogram(bins = 9)
-
-#histograms for predictors 41-55
-data_predict[,seq(41:55)] %>%
+data_predict[,seq(26:54)] %>%
   keep(is.numeric) %>% 
   gather() %>% 
   ggplot(aes(value)) +
@@ -137,6 +129,11 @@ sum(!complete.cases(freq_tab))
 ```
 
 #Spending the data
+```{r Balanced or Unbalanced Response variable}
+class_frequency <- table(data_raw$Divorce_Y_N)
+barplot(class_frequency, ylab='count',xlab='Outcome',main='Balance of Outcome')
+```
+
 ```{r spending the data}
 set.seed(1)
 
