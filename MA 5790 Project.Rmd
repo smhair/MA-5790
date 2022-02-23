@@ -210,7 +210,7 @@ dim(data_new)
 ```{r resampling}
 ctrl <- trainControl(method = "LGOCV", summaryFunction = twoClassSummary, classProbs = TRUE, savePredictions = TRUE)
 
-proc <- c("center", "scale", "pca", "nzv")
+proc <- c("center", "scale", "pca", "corr")
 
 #Logistic
 lgfit <- train(x = train_predict, y = train_out, method = "glm", metric = "ROC", trControl = ctrl, preProcess = proc)
