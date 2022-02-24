@@ -4,10 +4,6 @@ author: "Ezequiel Carrillo and Samantha Hair"
 date: "1/22/2022"
 output: html_document
 ---
-```{r packages}
-packages = c('purrr','tidyselect','dplyr','tidyr','ggplot2','dplyr','Hmisc','e1071','caret','corrplot','moments','kernlab','pls')
-install.packages(packages)
-```
 
 ```{r setup}
 library(purrr)
@@ -91,19 +87,25 @@ data_raw <- data_raw %>%
 data_predict <- data_raw[, -55]
 data_out <- data_raw[, 55]
 dim(data_raw)
-names(data_raw)
 ```
 
 ```{r explore the data}
 #histograms for first 20 predictors
-data_predict[,seq(1:25)] %>%
+data_predict[,seq(1:20)] %>%
   keep(is.numeric) %>% 
   gather() %>% 
   ggplot(aes(value)) +
   facet_wrap(~ key, scales = "free") +
   geom_histogram(bins = 9)
 #histograms for predictors 21-40
-data_predict[,seq(26:54)] %>%
+data_predict[,seq(21:40)] %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+  facet_wrap(~ key, scales = "free") +
+  geom_histogram(bins = 9)
+#histograms for predictors 41-55
+data_predict[,seq(41:55)] %>%
   keep(is.numeric) %>% 
   gather() %>% 
   ggplot(aes(value)) +
@@ -116,14 +118,15 @@ corrplot(corr, order = "hclust")
 freq_tab <- lapply(data_predict, table)
 #missing data
 sum(!complete.cases(freq_tab))
+#calculate skewness for all predictors
+predictorSkew=round(skewness(data_predict),3);
+#plot skewness
+boxplot(predictorSkew, main='Spread of Skewness for all predictors', xlab='predictors (54)', ylab='skewness coefficient');
+plot(predictorSkew, main='scatter plot of predictor and its skew',xlab = 'predictor index',ylab = 'skewness coefficient')
+hist(predictorSkew)
 ```
 
 #Spending the data
-```{r Balanced or Unbalanced Response variable}
-class_frequency <- table(data_raw$Divorce_Y_N)
-barplot(class_frequency, ylab='count',xlab='Outcome',main='Balance of Outcome')
-```
-
 ```{r spending the data}
 set.seed(1)
 train_row <- createDataPartition(data_out, p = .8, list = FALSE)
@@ -176,17 +179,11 @@ data_new <- predict(trans, data_trans1)
 dim(data_new)
 ```
 
-#Spending the data
-```{r Balanced or Unbalanced Response variable}
-class_frequency <- table(data_raw$Divorce_Y_N)
-barplot(class_frequency, ylab='count',xlab='Outcome',main='Balance of Outcome')
-```
-
 
 #Resampling the data w/ multiple models
 ```{r resampling}
 ctrl <- trainControl(method = "LGOCV", classProbs = TRUE, savePredictions = TRUE)
-proc <- c("center", "scale", "pca", "nzv")
+proc <- c("center", "scale", "pca", "corr")
 #Linear
 #Logistic
 lgfit <- train(x = train_predict, y = train_out, method = "glm", metric = "Accuracy", trControl = ctrl, preProcess = proc)
