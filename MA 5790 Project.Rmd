@@ -118,7 +118,7 @@ data_predict[,seq(26:54)] %>%
 #between predictor correlations
 corr <- cor(data_predict[, -55])
 
-corrplot(corr, order = "hclust")
+corrplot(corr,order = "hclust")
 
 #frequency table
 freq_tab <- lapply(data_predict, table)
@@ -194,62 +194,60 @@ qplot(c(1:33), var_explained) +
 
 
 data_new <- predict(trans, data_trans1)
+cumsum_var <- cumsum(var_explained)
 
 
 dim(data_new)
 ```
 
 
+
+
 #Resampling the data w/ multiple models
 ```{r resampling}
-ctrl <- trainControl(method = "LGOCV", classProbs = TRUE, savePredictions = TRUE)
+ctrl <- trainControl(method = "LGOCV", summaryFunction = defaultSummary, classProbs = TRUE, savePredictions = TRUE)
 
 proc <- c("center", "scale", "pca", "nzv")
 
-#Linear
 #Logistic
 lgfit <- train(x = train_predict, y = train_out, method = "glm", metric = "Accuracy", trControl = ctrl, preProcess = proc)
+lgfit$results
 
 #LDA
 ldafit <- train(x = train_predict, y = train_out, method = "lda", metric = "Accuracy", trControl = ctrl, preProcess = proc)
+ldafit$results
+
 
 #PLSDA
 plsfit <- train(x = train_predict, y = train_out, method = "pls", tuneGrid = expand.grid(.ncomp = 1:4), preProcess = proc, metric = "Accuracy", trControl = ctrl)
+plsfit$results
+
 
 #Penalized
 glmgrid <- expand.grid(.alpha = c(0,.1,.2,.4,.6,.8,1), .lambda = seq(.01,.2,length = 10))
 penfit <- train(x = train_predict, y = train_out, method = "glmnet", metric = "Accuracy", tuneGrid = glmgrid, preProcess = proc, trControl = ctrl)
+penfit$results
 
-#Non-Linear
-#SVM
-sigmred <- sigest(as.matrix(train_predict))
-svmgrid <- expand.grid(.sigma = sigmred[1], .C = 2^(seq(-4, 6)))
-svmfit <- train(x = train_predict, y = train_out, method = "svmRadial", metric = "Accuracy", tuneGrid = svmgrid, preProcess = proc, trControl = ctrl, fit = FALSE)
 
-#KNN
-knnfit <- train(x = train_predict, y = train_out, method = "knn", metric = "Accuracy", tuneGrid = data.frame(.k = 1:50), preProcess = proc, trControl = ctrl)
-
-#Naive
-nbfit <- train(x = train_predict, y = train_out, method = "nb", metric = "Accuracy", tuneGrid = data.frame(.fL = 2, .usekernel = TRUE, .adjust = TRUE), preProcess = proc, trControl = ctrl)
-
+#Shrunken
+nscGrid <- data.frame(.threshold = 0:25)
+nscfit <- train(x = train_predict, y = train_out, method = "pam", preProc = proc, tuneGrid = nscGrid,
+metric = "Accuracy", trControl = ctrl)
+nscfit$results
 ```
 
 #Tuning Parameter Plot
 ```{r}
-plot(plsfit, main = "PLSDA Tuning Parameter Plot", xlab = "Number of Components", ylab = "Accuracy")
+plot(plsfit, main = "PLSDA Tuning Parameter Plot", xlab = "Number of Components", ylab = "ROC")
 
-plot(penfit, main = "Penalized Tuning Parameter Plot", xlab = "Number of Components", ylab = "Accuracy")
+plot(penfit, main = "Penalized Tuning Parameter Plot", xlab = "Number of Components", ylab = "ROC")
 
-plot(svmfit, main = "SVM Tuning Parameter Plot", xlab = "Number of Components", ylab = "Accuracy")
-
-plot(knnfit, main = "KNN Tuning Parameter Plot", xlab = "Number of Components", ylab = "Accuracy")
-
+plot(nscfit, main = "Shrunken Centroid Tuning Parameter Plot", xlab = "Number of Components", ylab = "ROC")
 ```
 
 
 #Finding the best model
 ```{r}
-#Linear
 lgfit
 confusionMatrix(data = lgfit$pred$pred, reference = lgfit$pred$obs)
 
@@ -262,21 +260,12 @@ confusionMatrix(data = plsfit$pred$pred, reference = plsfit$pred$obs)
 penfit
 confusionMatrix(data = penfit$pred$pred, reference = penfit$pred$obs)
 
-#Non-Linear
-svmfit
-confusionMatrix(data = svmfit$pred$pred, reference = svmfit$pred$obs)
-
-knnfit
-confusionMatrix(data = knnfit$pred$pred, reference = knnfit$pred$obs)
-
-nbfit
-confusionMatrix(data = nbfit$pred$pred, reference = nbfit$pred$obs)
-
+nscfit
+confusionMatrix(data = nscfit$pred$pred, reference = nscfit$pred$obs)
 ```
 
 #Calculate predictions
 ```{r performance}
-#Linear
 lgpred <- predict(lgfit, newdata = test_predict)
 confusionMatrix(data = lgpred, test_out)
 
@@ -290,21 +279,13 @@ confusionMatrix(data = plspred, test_out)
 penpred <- predict(penfit, newdata = test_predict)
 confusionMatrix(data = penpred, test_out)
 
-#Non-Linear
-svmpred <- predict(svmfit, newdata = test_predict)
-confusionMatrix(data = svmpred, test_out)
-
-knnpred <- predict(knnfit, newdata = test_predict)
-confusionMatrix(data = knnpred, test_out)
-
-nbpred <- predict(nbfit, newdata = test_predict)
-confusionMatrix(data = nbpred, test_out)
-
+nscpred <- predict(nscfit, newdata = test_predict)
+confusionMatrix(data = nscpred, test_out)
 ```
 
 #Best Predictors
 ```{r best predictors}
-aa <- varImp(knnfit)
+aa <- varImp(plsfit)
 plot(aa, top = 5, scales = list(y = list(cex = .95)))
 
 bb <- varImp(plsfit)
